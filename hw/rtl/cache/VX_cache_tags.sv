@@ -27,7 +27,8 @@ module VX_cache_tags #(
     // Size of a word in bytes
     parameter WORD_SIZE     = 1, 
     // Request debug identifier
-    parameter UUID_WIDTH    = 0
+    parameter UUID_WIDTH    = 0,
+    parameter WRITEBACK     = 0
 ) (
     input wire                          clk,
     input wire                          reset,
@@ -44,55 +45,131 @@ module VX_cache_tags #(
     input wire                          fill,    
     input wire                          init,
     output wire [NUM_WAYS-1:0]          way_sel,
-    output wire [NUM_WAYS-1:0]          tag_matches
+    output wire [NUM_WAYS-1:0]          tag_matches,
+    `IGNORE_WARNINGS_BEGIN
+    output wire                         eviction, // it has to and with fill
+    output wire [`CS_TAG_SEL_BITS-1:0]  evicted_tag,
+    `IGNORE_WARNINGS_END
+    input  wire                         replay,
+    input  wire                         creq,
+    input  wire                         rw,
+    input  wire                         flush_line,
+    input  wire [NUM_WAYS-1:0]          flush_way_sel
 );
     `UNUSED_SPARAM (INSTANCE_ID)
     `UNUSED_PARAM (BANK_ID)
     `UNUSED_VAR (reset)
     `UNUSED_VAR (lookup)
 
-    localparam TAG_WIDTH = 1 + `CS_TAG_SEL_BITS;
 
     wire [`CS_LINE_SEL_BITS-1:0] line_sel = line_addr[`CS_LINE_SEL_BITS-1:0];
     wire [`CS_TAG_SEL_BITS-1:0] line_tag = `CS_LINE_TAG_ADDR(line_addr);
 
-    if (NUM_WAYS > 1)  begin
-        reg [NUM_WAYS-1:0] repl_way;
-        // cyclic assignment of replacement way
-        always @(posedge clk) begin
-            if (reset) begin
-                repl_way <= 1;
-            end else if (~stall) begin // hold the value on stalls prevent filling different slots twice
-                repl_way <= {repl_way[NUM_WAYS-2:0], repl_way[NUM_WAYS-1]};
+
+
+
+    
+    if (WRITEBACK) begin
+        localparam TAG_WIDTH = 1 + 1 + `CS_TAG_SEL_BITS;
+        wire write_dirty;
+        wire [NUM_WAYS-1:0] read_dirty;
+        wire [NUM_WAYS-1:0][`CS_TAG_SEL_BITS-1:0] read_tag;
+        wire [NUM_WAYS-1:0] fill_way;
+        wire [NUM_WAYS-1:0] read_valid;
+        if (NUM_WAYS > 1)  begin
+            reg [NUM_WAYS-1:0] repl_way;
+            // cyclic assignment of replacement way
+            always @(posedge clk) begin
+                if (reset) begin
+                    repl_way <= 1;
+                end else if (~stall) begin // hold the value on stalls prevent filling different slots twice
+                    repl_way <= {repl_way[NUM_WAYS-2:0], repl_way[NUM_WAYS-1]};
+                end
             end
-        end        
+            for (genvar i = 0; i < NUM_WAYS; ++i) begin
+                assign fill_way[i] = fill && repl_way[i];
+            end
+            VX_onehot_mux #(
+                .DATAW(`CS_TAG_SEL_BITS),
+                .N(NUM_WAYS),
+            ) evicted_tag_selection  (
+                .data_in(read_tag),
+                .sel_in(repl_way),    // not way_sel because we do not evict the way that when replay (write hit) or core write (write hit or miss but we do not evict when core writemiss)
+                .data_out(evicted_tag)
+            );
+        end else begin
+            `UNUSED_VAR (stall)
+            assign fill_way = fill;
+            assign evicted_tag = read_tag;
+        end
         for (genvar i = 0; i < NUM_WAYS; ++i) begin
-            assign way_sel[i] = fill && repl_way[i];
+            assign tag_matches[i] = (replay || creq) && read_valid[i] && (line_tag == read_tag[i]);
+        end
+        wire replay_or_creq_write = (replay || creq) && rw;
+        assign write_dirty = (replay_or_creq_write && (|tag_matches)); // write hit, note that we cannot write when write miss
+        assign way_sel = replay_or_creq_write ? tag_matches : (flush_line ? flush_way_sel : fill_way); // way_sel has to be set when replay_wr || creq_wr because we need to update the replay_or_creq_write bit, while writethrough does not need to enable write when replay_wr || creq_wr 
+        assign eviction = |((fill_way | flush_way_sel) & read_dirty);
+        for (genvar i = 0; i < NUM_WAYS; ++i) begin
+
+            VX_sp_ram #(
+                .DATAW (TAG_WIDTH),
+                .SIZE  (`CS_LINES_PER_BANK),
+                .NO_RWCHECK (1)
+            ) tag_store (
+                .clk   (clk),
+                .read  (1'b1),
+                .write (way_sel[i] || init), // writeback change
+                `UNUSED_PIN (wren),                
+                .addr  (line_sel),
+                .wdata ({~(init || flush_line), write_dirty, line_tag}), 
+                .rdata ({read_valid[i], read_dirty[i], read_tag[i]})
+            );
+            
         end
     end else begin
-        `UNUSED_VAR (stall)
-        assign way_sel = fill;
-    end
+        localparam TAG_WIDTH = 1 + `CS_TAG_SEL_BITS;
+        if (NUM_WAYS > 1)  begin
+            reg [NUM_WAYS-1:0] repl_way;
+            // cyclic assignment of replacement way
+            always @(posedge clk) begin
+                if (reset) begin
+                    repl_way <= 1;
+                end else if (~stall) begin // hold the value on stalls prevent filling different slots twice
+                    repl_way <= {repl_way[NUM_WAYS-2:0], repl_way[NUM_WAYS-1]};
+                end
+            end        
+            for (genvar i = 0; i < NUM_WAYS; ++i) begin
+                assign way_sel[i] = fill && repl_way[i];
+            end
+        end else begin
+            `UNUSED_VAR (stall)
+            assign way_sel = fill;
+        end
+        for (genvar i = 0; i < NUM_WAYS; ++i) begin
+            wire [`CS_TAG_SEL_BITS-1:0] read_tag;
+            wire read_valid;
 
-    for (genvar i = 0; i < NUM_WAYS; ++i) begin
-        wire [`CS_TAG_SEL_BITS-1:0] read_tag;
-        wire read_valid;
-
-        VX_sp_ram #(
-            .DATAW (TAG_WIDTH),
-            .SIZE  (`CS_LINES_PER_BANK),
-            .NO_RWCHECK (1)
-        ) tag_store (
-            .clk   (clk),
-            .read  (1'b1),
-            .write (way_sel[i] || init),
-            `UNUSED_PIN (wren),                
-            .addr  (line_sel),
-            .wdata ({~init, line_tag}), 
-            .rdata ({read_valid, read_tag})
-        );
-        
-        assign tag_matches[i] = read_valid && (line_tag == read_tag);
+            VX_sp_ram #(
+                .DATAW (TAG_WIDTH),
+                .SIZE  (`CS_LINES_PER_BANK),
+                .NO_RWCHECK (1)
+            ) tag_store (
+                .clk   (clk),
+                .read  (1'b1),
+                .write (way_sel[i] || init), // for writethrough, we do not need to write the tag when we replay the writemiss because it must be a writehit and the tag will not change
+                `UNUSED_PIN (wren),                
+                .addr  (line_sel),
+                .wdata ({~init, line_tag}), 
+                .rdata ({read_valid, read_tag})
+            );
+            
+            assign tag_matches[i] = read_valid && (line_tag == read_tag);
+        end
+        `UNUSED_VAR (creq)
+        `UNUSED_VAR (replay)
+        `UNUSED_VAR(rw)
+        `UNUSED_VAR(flush_line)
+        `UNUSED_VAR(flush_way_sel)
     end
     
 `ifdef DBG_TRACE_CACHE

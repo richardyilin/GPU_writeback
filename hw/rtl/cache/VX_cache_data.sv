@@ -29,7 +29,8 @@ module VX_cache_data #(
     // Enable cache writeable
     parameter WRITE_ENABLE      = 1,
     // Request debug identifier
-    parameter UUID_WIDTH        = 0
+    parameter UUID_WIDTH        = 0,
+    parameter WRITEBACK         = 0
 ) (
     input wire                          clk,
     input wire                          reset,
@@ -50,7 +51,11 @@ module VX_cache_data #(
     input wire [`CS_WORD_WIDTH-1:0]     write_data,
     input wire [NUM_WAYS-1:0]           way_sel,
 
-    output wire [`CS_WORD_WIDTH-1:0]    read_data
+    output wire [`CS_WORD_WIDTH-1:0]    read_data,
+    output wire [LINE_SIZE-1:0]         write_byteen,
+    `IGNORE_WARNINGS_BEGIN
+    output reg [`CS_WORDS_PER_LINE-1:0][`CS_WORD_WIDTH-1:0] evicted_data
+    `IGNORE_WARNINGS_END
 );
     `UNUSED_SPARAM (INSTANCE_ID)
     `UNUSED_PARAM (BANK_ID)
@@ -64,15 +69,71 @@ module VX_cache_data #(
     wire [`CS_WORDS_PER_LINE-1:0][NUM_WAYS-1:0][`CS_WORD_WIDTH-1:0] wdata;
     wire [BYTEENW-1:0] wren;
 
+    reg [`CS_WORDS_PER_LINE-1:0][WORD_SIZE-1:0] wren_r;
+    always @(*) begin
+        wren_r  = '0;
+        wren_r[wsel] = byteen;
+    end
+
+    if (WRITEBACK) begin
+        reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_r;
+        reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_n;
+        reg [LINE_SIZE-1:0] line_byteen0, line_byteen1;
+        integer i, j;
+        always @(*) begin
+            line_byteen0 = {{(LINE_SIZE-WORD_SIZE){1'b0}}, byteen};
+            line_byteen1 = line_byteen0 << (wsel * WORD_SIZE);
+            for (i = 0; i < `CS_LINES_PER_BANK; ++i) begin
+                for (j = 0; j < NUM_WAYS; ++j) begin
+                    dirty_bytes_n[i][j] = dirty_bytes_r[i][j];
+                end
+            end
+            if (fill) begin
+                dirty_bytes_n[line_sel][way_idx] = 'd0;
+            end else if (write) begin
+                dirty_bytes_n[line_sel][way_idx] = dirty_bytes_r[line_sel][way_idx] | line_byteen1;
+            end
+        end
+        integer n, p;
+        always @(*) begin
+            for (n = 0; n < `CS_WORDS_PER_LINE; ++n) begin
+                evicted_data[n] = '0;
+                // assign wdata[i] = fill ? {NUM_WAYS{fill_data[i]}} : {NUM_WAYS{wdata_r[i]}};            
+                for (p = 0; p < NUM_WAYS; ++p) begin
+                    if (way_sel[p]) begin
+                        evicted_data[n] = rdata[n][p];
+                    end
+                end
+            end
+        end
+        integer k, m;
+        always @(posedge clk) begin
+            if (reset) begin
+                for (k = 0; k < `CS_LINES_PER_BANK; ++k) begin
+                    for (m = 0; m < NUM_WAYS; ++m) begin
+                        dirty_bytes_r[k][m] <= '0;
+                    end
+                end
+            end else begin
+                for (k = 0; k < `CS_LINES_PER_BANK; ++k) begin
+                    for (m = 0; m < NUM_WAYS; ++m) begin
+                        dirty_bytes_r[k][m] <= dirty_bytes_n[k][m];
+                    end
+                end
+            end
+        end
+        assign write_byteen = dirty_bytes_r[line_sel][way_idx];
+    end else begin
+        assign write_byteen = wren_r;
+    end
+
     if (WRITE_ENABLE != 0 || (NUM_WAYS > 1)) begin
         reg [`CS_WORDS_PER_LINE-1:0][`CS_WORD_WIDTH-1:0] wdata_r;
-        reg [`CS_WORDS_PER_LINE-1:0][WORD_SIZE-1:0] wren_r;
 
         always @(*) begin
             wdata_r = {`CS_WORDS_PER_LINE{write_data}};
-            wren_r  = '0;
-            wren_r[wsel] = byteen;
         end
+        
         
         // order the data layout to perform ways multiplexing last 
         // this allows performing onehot encoding of the way index in parallel with BRAM read.
@@ -115,8 +176,8 @@ module VX_cache_data #(
     ) data_store (
         .clk   (clk),
         .read  (1'b1),
-        .write (write || fill),
-        .wren  (wren),
+        .write (write || fill), // it cares about if it is a write time
+        .wren  (wren), // it only cares about way selection, byteen, and write type (fill, core/replay write), it does not care about if it is a write time, so it may be set for read
         .addr  (line_sel),
         .wdata (wdata),
         .rdata (rdata) 
@@ -134,6 +195,7 @@ module VX_cache_data #(
     assign read_data = per_way_rdata[way_idx];
 
     `UNUSED_VAR (stall)
+    
 
 `ifdef DBG_TRACE_CACHE
     always @(posedge clk) begin 
