@@ -74,6 +74,8 @@ module VX_cache_flush #(
     reg [NUM_REQS-1:0][`ADDR_TYPE_WIDTH-1:0] core_bus_in_if_core_req_atype;
     reg [NUM_REQS-1:0]                     core_bus_in_if_core_req_ready;
 
+
+
     for (genvar i = 0; i < NUM_REQS; ++i) begin
         assign core_bus_out_if[i].req_valid  = core_bus_out_if_core_req_valid[i];
         assign core_bus_out_if[i].req_data.rw    = core_bus_out_if_core_req_rw[i];
@@ -95,6 +97,12 @@ module VX_cache_flush #(
         assign core_bus_in_if_core_req_atype[i] = core_bus_in_if[i].req_data.atype;
         assign core_bus_in_if[i].req_ready = core_bus_in_if_core_req_ready[i];
     end
+    
+    for (genvar i = 0; i < NUM_REQS; ++i) begin
+        assign core_bus_in_if[i].rsp_valid = core_bus_out_if[i].rsp_valid;
+        assign core_bus_in_if[i].rsp_data = core_bus_out_if[i].rsp_data;
+        assign core_bus_out_if[i].rsp_ready = core_bus_in_if[i].rsp_ready;
+    end
 
     always @(*) begin
         for (int i = 0; i < NUM_REQS; i++) begin
@@ -109,7 +117,7 @@ module VX_cache_flush #(
         end
         flush_begin = 1'b0;
         for (int i = 0; i < NUM_REQS; i++) begin
-            flush_begin = flush_begin || (core_bus_in_if_core_req_valid[i] && core_bus_in_if_core_req_addr[i][`ADDR_TYPE_FLUSH]);
+            flush_begin = flush_begin || (core_bus_in_if_core_req_valid[i] && core_bus_in_if_core_req_atype[i][`ADDR_TYPE_FLUSH]);
         end
         state_n = state;
         bank_ctr_n = bank_ctr;
