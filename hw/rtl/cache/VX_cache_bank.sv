@@ -163,13 +163,21 @@ module VX_cache_bank #(
     reg [NUM_WAYS-1:0] flush_way_sel_pre;
     wire mem_req_flush_pre;
     wire mem_req_flush_s0, mem_req_flush_s1;
+    wire creq_grant, creq_enable;
+    assign creq_grant  = ~init_enable2 && ~replay_enable && ~fill_enable;
+    assign core_req_ready = creq_grant
+                        && ~mreq_alm_full
+                        && ~mshr_alm_full
+                        && ~pipe_stall;
+    reg [2:0] state;
     if (WRITEBACK) begin
         localparam INIT = 0;
         localparam RUN = 1;
         localparam WAIT_MSHR = 2;
         localparam FLUSH_LINES = 3;
         
-        reg [2:0] state, state_n;
+        // reg [2:0] state, state_n;
+        reg [2:0] state_n;
         reg [`CS_LINE_SEL_BITS-1:0] line_ctr_n;
         reg [NUM_WAYS-1:0] flush_way_sel_pre_n;
         assign init_enable2 = state == INIT;
@@ -177,7 +185,7 @@ module VX_cache_bank #(
         // assign flush_done = state == DONE;
         assign flush_line_enable = state == FLUSH_LINES;
         assign mem_req_flush_pre = core_req_flush && ~core_req_rw && core_req_valid;
-        assign flush_begin = core_req_flush && core_req_rw && core_req_valid; // first_flush = core_req_flush && core_req_rw
+        assign flush_begin = core_req_flush && core_req_rw && core_req_valid && core_req_ready; // first_flush = core_req_flush && core_req_rw
 
         always @(*) begin
             state_n = state;
@@ -218,7 +226,11 @@ module VX_cache_bank #(
                         if (flush_way_sel_pre[NUM_WAYS-1]) begin
                             line_ctr_n = line_ctr + 1;
                         end
-                        flush_way_sel_pre_n = flush_way_sel_pre << 1;
+                        if (flush_way_sel_pre[NUM_WAYS-1]) begin
+                            flush_way_sel_pre_n = 'd1;
+                        end else begin
+                            flush_way_sel_pre_n = flush_way_sel_pre << 1;
+                        end
                     end
                 end
                 default:;
@@ -260,6 +272,8 @@ module VX_cache_bank #(
         `UNUSED_VAR(mem_req_flush_s0)
         `UNUSED_VAR(mem_req_flush_s1)
         `UNUSED_VAR(mreq_flush)
+        `UNUSED_VAR(state)
+        assign state = 'x;
         //`UNUSED_VAR()
     end
 
@@ -273,27 +287,18 @@ module VX_cache_bank #(
 
     wire fill_grant  = ~init_enable2 && ~replay_enable;
     wire fill_enable = fill_grant && mem_rsp_valid;
-    wire creq_grant, creq_enable;
+    wire core_req_fire;
     if (WRITEBACK) begin
         wire first_flush;
         assign first_flush = core_req_flush && core_req_rw;
-        assign creq_grant  = ~init_enable2 && ~replay_enable && ~fill_enable && ~(first_flush);
         assign creq_enable = creq_grant && core_req_valid && ~(first_flush);
-        assign core_req_ready = creq_grant
-                            && ~mreq_alm_full
-                            && ~mshr_alm_full
-                            && ~pipe_stall
-                            && ~(first_flush);
+        assign core_req_fire = core_req_valid && core_req_ready && ~(first_flush);;
     end else begin
-        assign creq_grant  = ~init_enable2 && ~replay_enable && ~fill_enable;
         assign creq_enable = creq_grant && core_req_valid;    
-        assign core_req_ready = creq_grant
-                            && ~mreq_alm_full
-                            && ~mshr_alm_full
-                        && ~pipe_stall;
+        assign core_req_fire = core_req_valid && core_req_ready;
     end
 
-
+    
    
 
     assign replay_ready = replay_grant
@@ -307,7 +312,6 @@ module VX_cache_bank #(
     wire init_fire     = init_enable2;
     wire replay_fire = replay_valid && replay_ready;
     wire mem_rsp_fire  = mem_rsp_valid && mem_rsp_ready;
-    wire core_req_fire = core_req_valid && core_req_ready;
 
     wire [TAG_WIDTH-1:0] mshr_creq_tag = replay_enable ? replay_tag : core_req_tag;
     
