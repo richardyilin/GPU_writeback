@@ -288,6 +288,7 @@ module VX_cache_bank #(
     wire fill_grant  = ~init_enable2 && ~replay_enable;
     wire fill_enable = fill_grant && mem_rsp_valid;
     wire core_req_fire;
+
     if (WRITEBACK) begin
         wire first_flush;
         assign first_flush = core_req_flush && core_req_rw;
@@ -297,9 +298,6 @@ module VX_cache_bank #(
         assign creq_enable = creq_grant && core_req_valid;    
         assign core_req_fire = core_req_valid && core_req_ready;
     end
-
-    
-   
 
     assign replay_ready = replay_grant
                          && ~rdw_hazard_st0
