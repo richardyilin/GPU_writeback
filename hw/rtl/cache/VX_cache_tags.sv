@@ -98,7 +98,7 @@ module VX_cache_tags #(
                 .data_out(evicted_tag)
             );
         end else begin
-            `UNUSED_VAR (stall)
+            // `UNUSED_VAR (stall)
             assign fill_way = fill;
             assign evicted_tag = read_tag;
         end
@@ -118,7 +118,7 @@ module VX_cache_tags #(
             ) tag_store (
                 .clk   (clk),
                 .read  (1'b1),
-                .write (way_sel[i] || init), // writeback change
+                .write ((way_sel[i] && ~stall) || init), // writeback change
                 `UNUSED_PIN (wren),                
                 .addr  (line_sel),
                 .wdata ({~(init || flush_line), write_dirty, line_tag}), 

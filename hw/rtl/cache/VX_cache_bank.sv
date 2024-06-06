@@ -279,7 +279,7 @@ module VX_cache_bank #(
         //`UNUSED_VAR()
     end
 
-    wire pipe_stall = crsq_stall || rdw_hazard_st1;
+    wire pipe_stall = crsq_stall || rdw_hazard_st1 || (eviction_s1 && mreq_alm_full); // need to discuss
 
     // inputs arbitration:
     // mshr replay has highest priority to maximize utilization since there is no miss.
@@ -738,7 +738,7 @@ module VX_cache_bank #(
     wire mreq_rw;
     wire mreq_flush;
     if (WRITEBACK) begin
-        assign mreq_push = ((do_read_miss_st1 || do_write_miss_st1) && ~mshr_pending_st1) || (eviction_s1); // lookup matches are only for read, not for write. There can be write match but mshr_pending_st1 is not set
+        assign mreq_push = (((do_read_miss_st1 || do_write_miss_st1) && ~mshr_pending_st1) || (eviction_s1)) && (~pipe_stall); // lookup matches are only for read, not for write. There can be write match but mshr_pending_st1 is not set
         assign mreq_rw   = WRITE_ENABLE && eviction_s1;
         assign mreq_addr = eviction_s1 ? evicted_addr_s1 : addr_st1;
         assign mreq_data = evicted_data_s1; // read_data_st1 is the data evicted data when an eviction happens
