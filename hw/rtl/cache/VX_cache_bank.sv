@@ -338,7 +338,8 @@ module VX_cache_bank #(
                             (mem_rsp_valid ? mem_rsp_addr : core_req_addr));
     end
 
-    assign data_sel[`CS_WORD_WIDTH-1:0] = (mem_rsp_valid || !WRITE_ENABLE) ? mem_rsp_data[`CS_WORD_WIDTH-1:0] : (replay_valid ? replay_data : core_req_data);
+    // assign data_sel[`CS_WORD_WIDTH-1:0] = (mem_rsp_valid || !WRITE_ENABLE) ? mem_rsp_data[`CS_WORD_WIDTH-1:0] : (replay_valid ? replay_data : core_req_data);
+    assign data_sel[`CS_WORD_WIDTH-1:0] = (!WRITE_ENABLE) ? mem_rsp_data[`CS_WORD_WIDTH-1:0] : (replay_valid ? replay_data : (mem_rsp_valid ? mem_rsp_data[`CS_WORD_WIDTH-1:0] : core_req_data));
     for (genvar i = `CS_WORD_WIDTH; i < `CS_LINE_WIDTH; ++i) begin
         assign data_sel[i] = mem_rsp_data[i];
     end
@@ -823,7 +824,7 @@ module VX_cache_bank #(
                 `TRACE(2, ("%d: %s-bank%0d fill-req: addr=0x%0h, mshr_id=%0d (#%0d)\n", $time, INSTANCE_ID, BANK_ID, `CS_LINE_TO_FULL_ADDR(mreq_addr, BANK_ID), mreq_id, req_uuid_st1));
         end
         if (eviction_s1) begin
-            `TRACE(3, ("%d: *** %s-bank%0d evicted_address=0x%0h evicted_data=0x%0h  evicted_byteen=%b Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, evicted_addr_s1, evicted_data_s1, line_byteen_st1));
+            `TRACE(3, ("%d: *** %s-bank%0d evicted_address=0x%0h evicted_data=0x%0h  evicted_byteen=%b (#%0d) Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, evicted_addr_s1, evicted_data_s1, line_byteen_st1, req_uuid_st1));
         end
     end    
 `endif

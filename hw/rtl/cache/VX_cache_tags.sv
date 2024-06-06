@@ -170,6 +170,7 @@ module VX_cache_tags #(
         `UNUSED_VAR(rw)
         `UNUSED_VAR(flush_line)
         `UNUSED_VAR(flush_way_sel)
+        assign eviction = 1'b0;
     end
     
 `ifdef DBG_TRACE_CACHE
