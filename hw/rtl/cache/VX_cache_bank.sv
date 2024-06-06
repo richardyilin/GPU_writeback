@@ -527,9 +527,24 @@ module VX_cache_bank #(
 
     // detect BRAM's read-during-write hazard
     assign rdw_hazard_st0 = do_fill_st0; // after a fill
-    always @(posedge clk) begin
-        rdw_hazard_st1 <= (do_creq_rd_st0 && do_write_hit_st1 && (addr_st0 == addr_st1))
-                       && ~rdw_hazard_st1; // after a write to same address
+    wire do_replay_rd_st0;
+    if (WRITEBACK) begin
+        
+        assign do_replay_rd_st0 = valid_st0 && is_replay_st0 && ~rw_st0;
+        always @(posedge clk) begin
+            rdw_hazard_st1 <= ((do_creq_rd_st0 || do_replay_rd_st0)
+                            && (do_write_hit_st1 || do_replay_wr_st1) 
+                            && (addr_st0 == addr_st1))
+                            && ~rdw_hazard_st1; // after a write to same address
+        end
+    end else begin
+        
+        always @(posedge clk) begin
+            rdw_hazard_st1 <= (do_creq_rd_st0 && do_write_hit_st1 && (addr_st0 == addr_st1))
+                        && ~rdw_hazard_st1; // after a write to same address
+        end
+        `UNUSED_VAR(do_replay_rd_st0)
+        assign do_replay_rd_st0 = 'x;
     end
 
     wire [`CS_WORD_WIDTH-1:0] write_data_st1 = data_st1[`CS_WORD_WIDTH-1:0];
@@ -806,6 +821,9 @@ module VX_cache_bank #(
                 `TRACE(2, ("%d: %s-bank%0d writethrough: addr=0x%0h, byteen=%b, data=0x%0h (#%0d)\n", $time, INSTANCE_ID, BANK_ID, `CS_LINE_TO_FULL_ADDR(mreq_addr, BANK_ID), mreq_byteen, mreq_data, req_uuid_st1));
             else
                 `TRACE(2, ("%d: %s-bank%0d fill-req: addr=0x%0h, mshr_id=%0d (#%0d)\n", $time, INSTANCE_ID, BANK_ID, `CS_LINE_TO_FULL_ADDR(mreq_addr, BANK_ID), mreq_id, req_uuid_st1));
+        end
+        if (eviction_s1) begin
+            `TRACE(3, ("%d: *** %s-bank%0d evicted_address=0x%0h evicted_data=0x%0h  evicted_byteen=%b Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, evicted_addr_s1, evicted_data_s1, line_byteen_st1));
         end
     end    
 `endif
