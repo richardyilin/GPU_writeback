@@ -274,6 +274,8 @@ module VX_cache_bank #(
         `UNUSED_VAR(mreq_flush)
         `UNUSED_VAR(state)
         assign state = 'x;
+        assign mreq_flush = 'x;
+
         //`UNUSED_VAR()
     end
 
@@ -420,7 +422,7 @@ module VX_cache_bank #(
     wire do_fill_st0    = valid_st0 && is_fill_st0;
     wire do_init_st0    = valid_st0 && is_init_st0;
     wire do_lookup_st0  = valid_st0 && ~(is_fill_st0 || is_init_st0);
-    `IGNORE_WARNINGS_BEGIN
+    // `IGNORE_WARNINGS_BEGIN
     // wire do_replay_wr_st0, do_creq_wr_st0;
     // `IGNORE_WARNINGS_END
     // if (WRITEBACK) begin
@@ -433,7 +435,7 @@ module VX_cache_bank #(
     wire [NUM_WAYS-1:0] tag_matches_st0, tag_matches_st1;
     wire [NUM_WAYS-1:0] way_sel_st0, way_sel_st1;
     wire eviction_s0, eviction_s1;
-    wire [`CS_TAG_SEL_BITS-1:0] evicted_tag_s0, evicted_tag_s1;
+    wire [`CS_TAG_SEL_BITS-1:0] evicted_tag_s0;
 
     `RESET_RELAY (tag_reset, reset);
 
@@ -472,17 +474,19 @@ module VX_cache_bank #(
     );
 
     assign mshr_id_st0 = is_creq_st0 ? mshr_alloc_id_st0 : replay_id_st0;
+    wire [`CS_LINE_ADDR_WIDTH-1:0] evicted_addr_s0 = {evicted_tag_s0, addr_st0[`CS_LINE_SEL_BITS-1:0]};
+    wire [`CS_LINE_ADDR_WIDTH-1:0] evicted_addr_s1;
 
     if (WRITEBACK) begin
         VX_pipe_register #(
-            .DATAW  (1 + 1 + 1 + 1 + 1 + `CS_LINE_ADDR_WIDTH + `CS_LINE_WIDTH + WORD_SIZE + WORD_SEL_WIDTH + REQ_SEL_WIDTH + TAG_WIDTH + MSHR_ADDR_WIDTH + MSHR_ADDR_WIDTH + NUM_WAYS + NUM_WAYS + 1 + 1 + `CS_TAG_SEL_BITS + 1),
+            .DATAW  (1 + 1 + 1 + 1 + 1 + `CS_LINE_ADDR_WIDTH + `CS_LINE_WIDTH + WORD_SIZE + WORD_SEL_WIDTH + REQ_SEL_WIDTH + TAG_WIDTH + MSHR_ADDR_WIDTH + MSHR_ADDR_WIDTH + NUM_WAYS + NUM_WAYS + 1 + 1 + `CS_LINE_ADDR_WIDTH + 1),
             .RESETW (1)
         ) pipe_reg1 (
             .clk      (clk),
             .reset    (reset),
             .enable   (~pipe_stall),
-            .data_in  ({valid_st0, is_replay_st0, is_fill_st0, is_creq_st0, rw_st0, addr_st0, data_st0, byteen_st0, wsel_st0, req_idx_st0, tag_st0, mshr_id_st0, mshr_tail_st0, tag_matches_st0, way_sel_st0, mshr_pending_st0, eviction_s0, evicted_tag_s0, mem_req_flush_s0}),
-            .data_out ({valid_st1, is_replay_st1, is_fill_st1, is_creq_st1, rw_st1, addr_st1, data_st1, byteen_st1, wsel_st1, req_idx_st1, tag_st1, mshr_id_st1, mshr_tail_st1, tag_matches_st1, way_sel_st1, mshr_pending_st1, eviction_s1, evicted_tag_s1, mem_req_flush_s1})
+            .data_in  ({valid_st0, is_replay_st0, is_fill_st0, is_creq_st0, rw_st0, addr_st0, data_st0, byteen_st0, wsel_st0, req_idx_st0, tag_st0, mshr_id_st0, mshr_tail_st0, tag_matches_st0, way_sel_st0, mshr_pending_st0, eviction_s0, evicted_addr_s0, mem_req_flush_s0}),
+            .data_out ({valid_st1, is_replay_st1, is_fill_st1, is_creq_st1, rw_st1, addr_st1, data_st1, byteen_st1, wsel_st1, req_idx_st1, tag_st1, mshr_id_st1, mshr_tail_st1, tag_matches_st1, way_sel_st1, mshr_pending_st1, eviction_s1, evicted_addr_s1, mem_req_flush_s1})
         );
     end else begin
         VX_pipe_register #(
@@ -495,7 +499,19 @@ module VX_cache_bank #(
             .data_in  ({valid_st0, is_replay_st0, is_fill_st0, is_creq_st0, rw_st0, addr_st0, data_st0, byteen_st0, wsel_st0, req_idx_st0, tag_st0, mshr_id_st0, mshr_tail_st0, tag_matches_st0, way_sel_st0, mshr_pending_st0}),
             .data_out ({valid_st1, is_replay_st1, is_fill_st1, is_creq_st1, rw_st1, addr_st1, data_st1, byteen_st1, wsel_st1, req_idx_st1, tag_st1, mshr_id_st1, mshr_tail_st1, tag_matches_st1, way_sel_st1, mshr_pending_st1})
         );
-
+        
+        `UNUSED_VAR(eviction_s1)
+        assign eviction_s1 = 'x;
+        `UNUSED_VAR(eviction_s0)
+        assign eviction_s0 = 'x;
+        `UNUSED_VAR(evicted_addr_s0)
+        assign  evicted_addr_s0 = 'x;
+        `UNUSED_VAR(evicted_addr_s1)
+        assign  evicted_addr_s1 = 'x;
+        // `UNUSED_VAR()
+        // assign  = 'x;
+        // `UNUSED_VAR()
+        // assign  = 'x;
     end
 
     // we have a tag hit
@@ -533,9 +549,14 @@ module VX_cache_bank #(
         
         assign do_replay_rd_st0 = valid_st0 && is_replay_st0 && ~rw_st0;
         always @(posedge clk) begin
-            rdw_hazard_st1 <= ((do_creq_rd_st0 || do_replay_rd_st0)
+            // rdw_hazard_st1 <= ((do_creq_rd_st0 || do_replay_rd_st0)
+            //                 && (do_write_hit_st1 || do_replay_wr_st1) 
+            //                 && (addr_st0 == addr_st1))
+            //                 && ~rdw_hazard_st1; // after a write to same address
+            rdw_hazard_st1 <= (((do_creq_rd_st0 || do_replay_rd_st0)
                             && (do_write_hit_st1 || do_replay_wr_st1) 
                             && (addr_st0 == addr_st1))
+                            || (eviction_s0 && (do_write_hit_st1 || do_replay_wr_st1) && (evicted_addr_s0 == addr_st1)))
                             && ~rdw_hazard_st1; // after a write to same address
         end
     end else begin
@@ -715,7 +736,6 @@ module VX_cache_bank #(
     wire [`CS_LINE_ADDR_WIDTH-1:0] mreq_addr;
     wire [MSHR_ADDR_WIDTH-1:0] mreq_id;
     wire mreq_rw;
-    wire [`CS_LINE_ADDR_WIDTH-1:0] evicted_addr_s1 = {evicted_tag_s1, addr_st1[`CS_LINE_SEL_BITS-1:0]};
     wire mreq_flush;
     if (WRITEBACK) begin
         assign mreq_push = ((do_read_miss_st1 || do_write_miss_st1) && ~mshr_pending_st1) || (eviction_s1); // lookup matches are only for read, not for write. There can be write match but mshr_pending_st1 is not set
@@ -730,6 +750,7 @@ module VX_cache_bank #(
         assign mreq_data = {`CS_WORDS_PER_LINE{write_data_st1}};
         `UNUSED_VAR (eviction_s1)
         `UNUSED_VAR (evicted_data_s1)
+        `UNUSED_VAR (evicted_addr_s1)
         `UNUSED_VAR (evicted_addr_s1)
     end
     assign mreq_pop = mem_req_valid && mem_req_ready;
@@ -824,9 +845,16 @@ module VX_cache_bank #(
                 `TRACE(2, ("%d: %s-bank%0d fill-req: addr=0x%0h, mshr_id=%0d (#%0d)\n", $time, INSTANCE_ID, BANK_ID, `CS_LINE_TO_FULL_ADDR(mreq_addr, BANK_ID), mreq_id, req_uuid_st1));
         end
         if (eviction_s1) begin
-            `TRACE(3, ("%d: *** %s-bank%0d evicted_address=0x%0h evicted_data=0x%0h  evicted_byteen=%b (#%0d) Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, evicted_addr_s1, evicted_data_s1, line_byteen_st1, req_uuid_st1));
+            `TRACE(3, ("%d: *** %s-bank%0d evicted_address=0x%0h evicted_full_address=0x%0h evicted_data=0x%0h  evicted_byteen=%b (#%0d) Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, evicted_addr_s1, `CS_LINE_TO_FULL_ADDR(evicted_addr_s1, BANK_ID), evicted_data_s1, line_byteen_st1, req_uuid_st1));
         end
-    end    
+        if (core_req_fire) begin
+            if (core_req_rw)
+                `TRACE(2, ("%d: %s-bank%0d core-wr-req: addr=0x%0h, tag=0x%0h, req_idx=%0d, byteen=%b, data=0x%0h (#%0d) Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, core_req_addr, core_req_tag, core_req_idx, core_req_byteen, core_req_data, req_uuid_sel));
+            else
+                `TRACE(2, ("%d: %s-bank%0d core-rd-req: addr=0x%0h, tag=0x%0h, req_idx=%0d (#%0d) Yi-Lin Tsai\n", $time, INSTANCE_ID, BANK_ID, core_req_addr, core_req_tag, core_req_idx, req_uuid_sel));
+        end
+    end
+    
 `endif
 
 endmodule

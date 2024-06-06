@@ -75,10 +75,13 @@ module VX_cache_data #(
         wren_r[wsel] = byteen;
     end
 
+    reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_r;
+    reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_n;
+    reg [LINE_SIZE-1:0] line_byteen0, line_byteen1;
     if (WRITEBACK) begin
-        reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_r;
-        reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_n;
-        reg [LINE_SIZE-1:0] line_byteen0, line_byteen1;
+        // reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_r;
+        // reg [`CS_LINES_PER_BANK-1:0][NUM_WAYS-1:0][LINE_SIZE-1:0] dirty_bytes_n;
+        // reg [LINE_SIZE-1:0] line_byteen0, line_byteen1;
         integer i, j;
         always @(*) begin
             line_byteen0 = {{(LINE_SIZE-WORD_SIZE){1'b0}}, byteen};
@@ -125,6 +128,23 @@ module VX_cache_data #(
         assign write_byteen = dirty_bytes_r[line_sel][way_idx];
     end else begin
         assign write_byteen = wren_r;
+
+        `UNUSED_VAR (dirty_bytes_r)
+        `UNUSED_VAR (dirty_bytes_n)
+        `UNUSED_VAR (line_byteen0)
+        `UNUSED_VAR (line_byteen1)
+        always @(*) begin
+        `IGNORE_WARNINGS_BEGIN
+            for (int k = 0; k < `CS_LINES_PER_BANK; ++k) begin
+                for (int m = 0; m < NUM_WAYS; ++m) begin
+                    dirty_bytes_r = 'd0;
+                    dirty_bytes_n = 'd0;
+                end
+            end
+        `IGNORE_WARNINGS_END
+            line_byteen0 = 'x;
+            line_byteen1 = 'x;
+        end
     end
 
     if (WRITE_ENABLE != 0 || (NUM_WAYS > 1)) begin
