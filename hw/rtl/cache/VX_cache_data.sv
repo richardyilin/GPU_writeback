@@ -117,7 +117,7 @@ module VX_cache_data #(
                         dirty_bytes_r[k][m] <= '0;
                     end
                 end
-            end else begin
+            end else if (~stall) begin
                 for (k = 0; k < `CS_LINES_PER_BANK; ++k) begin
                     for (m = 0; m < NUM_WAYS; ++m) begin
                         dirty_bytes_r[k][m] <= dirty_bytes_n[k][m];
@@ -196,7 +196,7 @@ module VX_cache_data #(
     ) data_store (
         .clk   (clk),
         .read  (1'b1),
-        .write (write || fill), // it cares about if it is a write time
+        .write ((write || fill) && ~stall), // it cares about if it is a write time
         .wren  (wren), // it only cares about way selection, byteen, and write type (fill, core/replay write), it does not care about if it is a write time, so it may be set for read
         .addr  (line_sel),
         .wdata (wdata),
