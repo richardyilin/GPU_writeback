@@ -126,6 +126,7 @@ module VX_cache_data #(
             end
         end
         assign write_byteen = dirty_bytes_r[line_sel][way_idx];
+        `UNUSED_VAR (wren_r)
     end else begin
         assign write_byteen = wren_r;
 
