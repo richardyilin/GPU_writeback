@@ -136,7 +136,7 @@ module VX_cache_tags #(
                 last_write <= '0;
             end else begin
                 last_line_sel <= line_sel;
-                last_write <= way_sel && ~{NUM_WAYS{stall}};
+                last_write <= way_sel & ~{NUM_WAYS{stall}};
             end
         end
     end else begin

@@ -124,7 +124,7 @@ module VX_cache_flush #(
         flush_banks_done_n = 'd0;
         flush_pass = 1'b0;
         for (int i = 0; i < NUM_REQS; ++i) begin
-            flush_pass = flush_pass || (core_bus_out_if_core_req_valid[i] && core_bus_out_if_core_req_ready[0] && core_bus_in_if_core_req_atype[i][`ADDR_TYPE_FLUSH]);
+            flush_pass = flush_pass || (core_bus_out_if_core_req_ready[i] && core_bus_in_if_core_req_atype[i][`ADDR_TYPE_FLUSH]);
         end
         case (state)
             RUN: begin
@@ -142,7 +142,6 @@ module VX_cache_flush #(
                     state_n = WAIT_BANK_FLUSH;
                 end
                 core_bus_out_if_core_req_valid[0]  = 1'b1;
-                // core_bus_out_if_core_req_addr[0] = {{LINE_ADDR_WIDTH{1'b0}}, bank_ctr, {WORD_SEL_BITS{1'b0}}};
                 core_bus_out_if_core_req_addr[0] = `CS_WORD_ADDR_WIDTH'(bank_ctr) << WORD_SEL_BITS;
                 core_bus_out_if_core_req_rw[0]    = 1'b1;
                 for (int i = 1; i < NUM_REQS; ++i) begin
@@ -151,7 +150,7 @@ module VX_cache_flush #(
                 for (int i = 0; i < NUM_REQS; ++i) begin
                     core_bus_in_if_core_req_ready[i]  = 1'b0;
                 end
-                if (core_bus_out_if_core_req_valid[0] && core_bus_out_if_core_req_ready[0]) begin
+                if (core_bus_out_if_core_req_ready[0]) begin
                     bank_ctr_n = bank_ctr + 1;
                 end
                 flush_banks_done_n = flush_banks_done | flush_banks_complete;
