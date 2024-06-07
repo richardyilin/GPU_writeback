@@ -54,7 +54,8 @@ module VX_cache_tags #(
     input  wire                         creq,
     input  wire                         rw,
     input  wire                         flush_line,
-    input  wire [NUM_WAYS-1:0]          flush_way_sel
+    input  wire [NUM_WAYS-1:0]          flush_way_sel,
+    output wire                         rdw_hazard
 );
     `UNUSED_SPARAM (INSTANCE_ID)
     `UNUSED_PARAM (BANK_ID)
@@ -67,15 +68,18 @@ module VX_cache_tags #(
 
 
 
+    wire write_dirty;
+    wire [NUM_WAYS-1:0] read_dirty;
+    wire [NUM_WAYS-1:0] fill_way;
+    wire [NUM_WAYS-1:0] read_valids;
+    reg [`CS_LINE_SEL_BITS-1:0] last_line_sel;
+    reg [NUM_WAYS-1:0] last_write;
 
     
     if (WRITEBACK) begin
-        localparam TAG_WIDTH = 1 + 1 + `CS_TAG_SEL_BITS;
-        wire write_dirty;
-        wire [NUM_WAYS-1:0] read_dirty;
+        assign rdw_hazard = (last_line_sel == line_sel) && (|(last_write & way_sel));
         wire [NUM_WAYS-1:0][`CS_TAG_SEL_BITS-1:0] read_tag;
-        wire [NUM_WAYS-1:0] fill_way;
-        wire [NUM_WAYS-1:0] read_valid;
+        localparam TAG_WIDTH = 1 + 1 + `CS_TAG_SEL_BITS;
         if (NUM_WAYS > 1)  begin
             reg [NUM_WAYS-1:0] repl_way;
             // cyclic assignment of replacement way
@@ -103,7 +107,7 @@ module VX_cache_tags #(
             assign evicted_tag = read_tag;
         end
         for (genvar i = 0; i < NUM_WAYS; ++i) begin
-            assign tag_matches[i] = (replay || creq) && read_valid[i] && (line_tag == read_tag[i]);
+            assign tag_matches[i] = (replay || creq) && read_valids[i] && (line_tag == read_tag[i]);
         end
         wire replay_or_creq_write = (replay || creq) && rw;
         assign write_dirty = (replay_or_creq_write && (|tag_matches)); // write hit, note that we cannot write when write miss
@@ -122,9 +126,18 @@ module VX_cache_tags #(
                 `UNUSED_PIN (wren),                
                 .addr  (line_sel),
                 .wdata ({~(init || flush_line), write_dirty, line_tag}), 
-                .rdata ({read_valid[i], read_dirty[i], read_tag[i]})
+                .rdata ({read_valids[i], read_dirty[i], read_tag[i]})
             );
-            
+        end
+        
+        always @(posedge clk) begin
+            if (reset) begin
+                last_line_sel <= '0;
+                last_write <= '0;
+            end else begin
+                last_line_sel <= line_sel;
+                last_write <= way_sel && ~{NUM_WAYS{stall}};
+            end
         end
     end else begin
         localparam TAG_WIDTH = 1 + `CS_TAG_SEL_BITS;
@@ -170,7 +183,20 @@ module VX_cache_tags #(
         `UNUSED_VAR(rw)
         `UNUSED_VAR(flush_line)
         `UNUSED_VAR(flush_way_sel)
-        assign eviction = 1'b0;
+        assign eviction = 'x;
+        `UNUSED_VAR(write_dirty)
+        assign write_dirty = 'x;
+        `UNUSED_VAR(read_dirty)
+        assign read_dirty = 'x;
+        `UNUSED_VAR(fill_way)
+        assign fill_way = 'x;
+        `UNUSED_VAR(read_valids)
+        assign read_valids = 'x;
+        `UNUSED_VAR(last_line_sel)
+        assign last_line_sel = 'x;
+        `UNUSED_VAR(last_write)
+        assign last_write = 'x;
+        assign rdw_hazard = 0;
     end
     
 `ifdef DBG_TRACE_CACHE

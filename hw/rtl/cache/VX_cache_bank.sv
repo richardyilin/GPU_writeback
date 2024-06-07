@@ -278,8 +278,13 @@ module VX_cache_bank #(
 
         //`UNUSED_VAR()
     end
-
-    wire pipe_stall = crsq_stall || rdw_hazard_st1 || (eviction_s1 && mreq_alm_full); // need to discuss
+    wire pipe_stall;
+    if (WRITEBACK) begin
+        assign pipe_stall = crsq_stall || rdw_hazard_st1 || (eviction_s1 && mreq_alm_full) || tag_rdw_hazard_st0; // need to discuss
+    end else begin
+        assign pipe_stall = crsq_stall || rdw_hazard_st1;
+        `UNUSED_VAR(tag_rdw_hazard_st0)
+    end
 
     // inputs arbitration:
     // mshr replay has highest priority to maximize utilization since there is no miss.
@@ -436,6 +441,7 @@ module VX_cache_bank #(
     wire [NUM_WAYS-1:0] way_sel_st0, way_sel_st1;
     wire eviction_s0, eviction_s1;
     wire [`CS_TAG_SEL_BITS-1:0] evicted_tag_s0;
+    wire tag_rdw_hazard_st0;
 
     `RESET_RELAY (tag_reset, reset);
 
@@ -470,7 +476,8 @@ module VX_cache_bank #(
         .creq       (is_creq_st0),
         .rw         (rw_st0),
         .flush_line (flush_line_s0),
-        .flush_way_sel (flush_way_sel_s0)
+        .flush_way_sel (flush_way_sel_s0),
+        .rdw_hazard (tag_rdw_hazard_st0)
     );
 
     assign mshr_id_st0 = is_creq_st0 ? mshr_alloc_id_st0 : replay_id_st0;
@@ -555,7 +562,7 @@ module VX_cache_bank #(
             //                 && ~rdw_hazard_st1; // after a write to same address
             rdw_hazard_st1 <= (((do_creq_rd_st0 || do_replay_rd_st0)
                             && (do_write_hit_st1 || do_replay_wr_st1) 
-                            && (addr_st0 == addr_st1))
+                            && (addr_st0[`CS_LINE_SEL_BITS-1:0] == addr_st1[`CS_LINE_SEL_BITS-1:0]))
                             || (eviction_s0 && (do_write_hit_st1 || do_replay_wr_st1) && (evicted_addr_s0 == addr_st1)))
                             && ~rdw_hazard_st1; // after a write to same address
         end
