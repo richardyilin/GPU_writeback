@@ -140,6 +140,7 @@ module VX_cache_tags #(
             end
         end
     end else begin
+    
         localparam TAG_WIDTH = 1 + `CS_TAG_SEL_BITS;
         if (NUM_WAYS > 1)  begin
             reg [NUM_WAYS-1:0] repl_way;
@@ -152,11 +153,11 @@ module VX_cache_tags #(
                 end
             end        
             for (genvar i = 0; i < NUM_WAYS; ++i) begin
-                assign way_sel[i] = fill && repl_way[i];
+                assign way_sel[i] = flush_line ? flush_way_sel[i] : fill && repl_way[i];
             end
         end else begin
-            `UNUSED_VAR (stall)
-            assign way_sel = fill;
+            assign way_sel = flush_line || fill;
+            `UNUSED_VAR (flush_way_sel)
         end
         for (genvar i = 0; i < NUM_WAYS; ++i) begin
             wire [`CS_TAG_SEL_BITS-1:0] read_tag;
@@ -169,10 +170,10 @@ module VX_cache_tags #(
             ) tag_store (
                 .clk   (clk),
                 .read  (1'b1),
-                .write (way_sel[i] || init), // for writethrough, we do not need to write the tag when we replay the writemiss because it must be a writehit and the tag will not change
+                .write ((way_sel[i] && ~stall) || init), // for writethrough, we do not need to write the tag when we replay the writemiss because it must be a writehit and the tag will not change
                 `UNUSED_PIN (wren),                
                 .addr  (line_sel),
-                .wdata ({~init, line_tag}), 
+                .wdata ({~(init || flush_line), line_tag}), 
                 .rdata ({read_valid, read_tag})
             );
             
@@ -181,8 +182,6 @@ module VX_cache_tags #(
         `UNUSED_VAR (creq)
         `UNUSED_VAR (replay)
         `UNUSED_VAR(rw)
-        `UNUSED_VAR(flush_line)
-        `UNUSED_VAR(flush_way_sel)
         assign eviction = 'x;
         `UNUSED_VAR(write_dirty)
         assign write_dirty = 'x;

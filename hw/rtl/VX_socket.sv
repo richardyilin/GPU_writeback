@@ -101,7 +101,7 @@ module VX_socket import VX_gpu_pkg::*; #(
         .NC_ENABLE      (0),
         .CORE_OUT_BUF   (2),
         .MEM_OUT_BUF    (2),
-        .WRITEBACK      (1)
+        .WRITEBACK      (0)
     ) icache (
     `ifdef PERF_ENABLE
         .cache_perf     (mem_perf_tmp_if.icache),
@@ -147,7 +147,7 @@ module VX_socket import VX_gpu_pkg::*; #(
         .NC_ENABLE      (1),
         .CORE_OUT_BUF   (`LMEM_ENABLED ? 2 : 1),
         .MEM_OUT_BUF    (2),
-        .WRITEBACK      (1)
+        .WRITEBACK      (0)
     ) dcache (
     `ifdef PERF_ENABLE
         .cache_perf     (mem_perf_tmp_if.dcache),
