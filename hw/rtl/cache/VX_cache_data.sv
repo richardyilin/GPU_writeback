@@ -143,8 +143,8 @@ module VX_cache_data #(
                 end
             end
         `IGNORE_WARNINGS_END
-            line_byteen0 = 'x;
-            line_byteen1 = 'x;
+            line_byteen0 = '0;
+            line_byteen1 = '0;
         end
     end
 

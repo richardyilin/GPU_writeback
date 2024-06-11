@@ -182,19 +182,19 @@ module VX_cache_tags #(
         `UNUSED_VAR (creq)
         `UNUSED_VAR (replay)
         `UNUSED_VAR(rw)
-        assign eviction = 'x;
+        assign eviction = '0;
         `UNUSED_VAR(write_dirty)
-        assign write_dirty = 'x;
+        assign write_dirty = '0;
         `UNUSED_VAR(read_dirty)
-        assign read_dirty = 'x;
+        assign read_dirty = '0;
         `UNUSED_VAR(fill_way)
-        assign fill_way = 'x;
+        assign fill_way = '0;
         `UNUSED_VAR(read_valids)
-        assign read_valids = 'x;
+        assign read_valids = '0;
         `UNUSED_VAR(last_line_sel)
-        assign last_line_sel = 'x;
+        assign last_line_sel = '0;
         `UNUSED_VAR(last_write)
-        assign last_write = 'x;
+        assign last_write = '0;
         assign rdw_hazard = 0;
     end
     

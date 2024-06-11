@@ -254,27 +254,27 @@ module VX_cache_bank #(
     //     assign init_enable = init_enable;
     //     assign init_line_sel2 = init_line_sel;
     //     `UNUSED_VAR(flush_begin)
-    //     assign line_ctr = 'x;
+    //     assign line_ctr = '0;
     //     `UNUSED_VAR(line_ctr)
-    //     assign flush_line_enable = 'x;
+    //     assign flush_line_enable = '0;
     //     `UNUSED_VAR(flush_line_enable)
-    //     assign flush_way_sel_pre = 'x;
+    //     assign flush_way_sel_pre = '0;
     //     `UNUSED_VAR(flush_way_sel_pre)
     //     `UNUSED_VAR(core_req_flush)
-    //     assign mem_req_flush = 'x;
-    //     assign flush_done = 'x;
-    //     assign flush_begin = 'x;
-    //     assign mem_req_flush_pre = 'x;
-    //     assign mem_req_flush_s0 = 'x;
-    //     assign mem_req_flush_s1 = 'x;
-    //     // assign  = 'x;
+    //     assign mem_req_flush = '0;
+    //     assign flush_done = '0;
+    //     assign flush_begin = '0;
+    //     assign mem_req_flush_pre = '0;
+    //     assign mem_req_flush_s0 = '0;
+    //     assign mem_req_flush_s1 = '0;
+    //     // assign  = '0;
     //     `UNUSED_VAR(mem_req_flush_pre)
     //     `UNUSED_VAR(mem_req_flush_s0)
     //     `UNUSED_VAR(mem_req_flush_s1)
     //     `UNUSED_VAR(mreq_flush)
     //     `UNUSED_VAR(state)
-    //     assign state = 'x;
-    //     assign mreq_flush = 'x;
+    //     assign state = '0;
+    //     assign mreq_flush = '0;
 
     //     //`UNUSED_VAR()
     // end
@@ -296,15 +296,15 @@ module VX_cache_bank #(
     wire fill_enable = fill_grant && mem_rsp_valid;
     wire core_req_fire;
 
-    if (WRITEBACK) begin
+    //if (WRITEBACK) begin
         wire first_flush;
         assign first_flush = core_req_flush && core_req_rw;
         assign creq_enable = creq_grant && core_req_valid && ~(first_flush);
         assign core_req_fire = core_req_valid && core_req_ready && ~(first_flush);;
-    end else begin
-        assign creq_enable = creq_grant && core_req_valid;    
-        assign core_req_fire = core_req_valid && core_req_ready;
-    end
+    // end else begin
+    //     assign creq_enable = creq_grant && core_req_valid;    
+    //     assign core_req_fire = core_req_valid && core_req_ready;
+    // end
 
     assign replay_ready = replay_grant
                          && ~rdw_hazard_st0
@@ -406,11 +406,11 @@ module VX_cache_bank #(
     //         }),
     //         .data_out ({valid_st0, is_init_st0, is_replay_st0, is_fill_st0, is_creq_st0, addr_st0, data_st0, rw_st0, byteen_st0, wsel_st0, req_idx_st0, tag_st0, replay_id_st0})
     //     );
-    //     assign flush_line_s0 = 'x;
+    //     assign flush_line_s0 = '0;
     //     `UNUSED_VAR(flush_line_s0)
-    //     assign flush_way_sel_s0 = 'x;
+    //     assign flush_way_sel_s0 = '0;
     //     `UNUSED_VAR(flush_way_sel_s0)
-    //     // assign  = 'x;
+    //     // assign  = '0;
     //     // `UNUSED_VAR()
     //     //`UNUSED_VAR()
 
@@ -508,17 +508,17 @@ module VX_cache_bank #(
         );
         
         `UNUSED_VAR(eviction_s1)
-        assign eviction_s1 = 'x;
+        assign eviction_s1 = '0;
         `UNUSED_VAR(eviction_s0)
-        assign eviction_s0 = 'x;
+        assign eviction_s0 = '0;
         `UNUSED_VAR(evicted_addr_s0)
-        assign  evicted_addr_s0 = 'x;
+        assign  evicted_addr_s0 = '0;
         `UNUSED_VAR(evicted_addr_s1)
-        assign  evicted_addr_s1 = 'x;
+        assign  evicted_addr_s1 = '0;
         // `UNUSED_VAR()
-        // assign  = 'x;
+        // assign  = '0;
         // `UNUSED_VAR()
-        // assign  = 'x;
+        // assign  = '0;
     end
 
     // we have a tag hit
@@ -573,7 +573,7 @@ module VX_cache_bank #(
                         && ~rdw_hazard_st1; // after a write to same address
         end
         `UNUSED_VAR(do_replay_rd_st0)
-        assign do_replay_rd_st0 = 'x;
+        assign do_replay_rd_st0 = '0;
     end
 
     wire [`CS_WORD_WIDTH-1:0] write_data_st1 = data_st1[`CS_WORD_WIDTH-1:0];
